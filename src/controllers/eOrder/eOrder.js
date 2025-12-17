@@ -252,9 +252,37 @@ export const getEOrders = async (req, res) => {
 };
 
 // Get EOrder by ID
+// export const getEOrderById = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const order = await prisma.eOrder.findUnique({
+//       where: { id },
+//       include: {
+//         cart: {
+//           include: {
+//             items: {
+//               include: {
+//                 eProduct: { select: { name: true, image: true } },
+//               },
+//             },
+//           },
+//         },
+//       },
+//     });
+//     if (!order) {
+//       return res.status(404).json(jsonResponse(false, "Order not found", null));
+//     }
+//     return res.status(200).json(jsonResponse(true, "Order found", order));
+//   } catch (error) {
+//     console.log(error);
+//     return res.status(500).json(jsonResponse(false, error, null));
+//   }
+// };
+
 export const getEOrderById = async (req, res) => {
   try {
     const { id } = req.params;
+
     const order = await prisma.eOrder.findUnique({
       where: { id },
       include: {
@@ -262,22 +290,43 @@ export const getEOrderById = async (req, res) => {
           include: {
             items: {
               include: {
-                eProduct: { select: { name: true, image: true } },
+                eProduct: {
+                  select: {
+                    name: true,
+                    images: true,   // ✅ FIXED FIELD NAME
+                  },
+                },
               },
             },
           },
         },
       },
     });
+
     if (!order) {
-      return res.status(404).json(jsonResponse(false, "Order not found", null));
+      return res
+        .status(404)
+        .json(jsonResponse(false, "Order not found", null));
     }
-    return res.status(200).json(jsonResponse(true, "Order found", order));
+
+    return res
+      .status(200)
+      .json(jsonResponse(true, "Order found", order));
+
   } catch (error) {
-    console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+
+    console.error("GET_ORDER_BY_ID_ERROR:", error);
+
+    return res.status(500).json(
+      jsonResponse(
+        false,
+        error.message || "Internal Server Error",
+        null
+      )
+    );
   }
 };
+
 
 export const getEOrderByIdOrEmailOrPhone = async (req, res) => {
   try {

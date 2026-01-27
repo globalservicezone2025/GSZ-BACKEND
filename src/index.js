@@ -40,11 +40,11 @@ app.use(express.json());
 
 //routes
 app.get("/", (req, res) => {
-  res.json({ msg: "Voltech API is working..." });
+  res.json({ msg: "GSZ API is working..." });
 });
 
 app.use("/api", allRoutes);
 
 app.listen(port, () => {
-  console.log(`Voltech API is working on port ${port}`);
+  console.log(`GSZ API is working on port ${port}`);
 });

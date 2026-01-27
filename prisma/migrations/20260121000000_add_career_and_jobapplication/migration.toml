@@ -1,0 +1,11 @@
+[migration]
+id = "20260121000000_add_career_and_jobapplication"
+revision = 1
+name = "add_career_and_jobapplication"
+status = "applied"
+started_at = "2026-01-21T00:00:00Z"
+finished_at = "2026-01-21T00:00:00Z"
+
+[datamodel]
+
+  # (prisma will normally write the datamodel here; keeping empty to match existing repo style)

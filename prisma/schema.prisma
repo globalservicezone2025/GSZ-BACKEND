@@ -622,3 +622,41 @@ model CartItem {
   cart       Cart      @relation(fields: [cartId], references: [id], onDelete: Cascade)
   eProduct   EProduct  @relation(fields: [eProductId], references: [id], onDelete: Cascade)
 }
+
+
+model Career {
+    id               String   @id @default(uuid())
+    title            String
+    position         String
+    location         String?
+    salary           String?
+    description      String?  @db.Text
+    lastDateToApply  DateTime?
+    visibility       Boolean  @default(true)
+    createdBy        String?
+    updatedBy        String?
+    deletedBy        String?
+    isDeleted        Boolean  @default(false)
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    applications     JobApplication[]
+}
+
+model JobApplication {
+    id          String   @id @default(uuid())
+    name        String
+    email       String
+    number      String
+    description String?  @db.Text
+    file        String?
+    careerId    String
+    createdBy   String?
+    updatedBy   String?
+    deletedBy   String?
+    isDeleted   Boolean  @default(false)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    career Career @relation(fields: [careerId], references: [id], onDelete: Cascade)
+}

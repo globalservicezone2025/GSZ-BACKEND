@@ -26,6 +26,7 @@ import eOrderRoutes from "./eOrder/index.js";
 import discountRoutes from "./discount/index.js";
 import colorRoutes from "./color/index.js";
 import eReviewRoutes from "./eReview/index.js";
+import careerRoutes from "./career/index.js";
 
 const allRoutes = [
   ...authRoutes,
@@ -56,6 +57,7 @@ const allRoutes = [
   ...pricingRoutes,
   ...faqRoutes,
   ...blogRoutes,
+    ...careerRoutes,
 ];
 
 export default allRoutes;

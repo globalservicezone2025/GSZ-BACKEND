@@ -86,7 +86,7 @@ export const createEOrder = async (req, res) => {
                 <td style="border: 1px solid #ddd; padding: 8px;">${item.eProduct?.name || "Unnamed Product"}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${item.quantity}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${item.size}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.color}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.color.name}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">৳${(item.eProduct?.price || 0).toFixed(2)}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">৳${(
                   (item.eProduct?.price || 0) * item.quantity

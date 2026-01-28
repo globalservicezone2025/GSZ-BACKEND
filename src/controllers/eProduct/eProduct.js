@@ -101,22 +101,112 @@ export const createEProduct = async (req, res) => {
 
 
 // Update EProduct
+// export const updateEProduct = async (req, res) => {
+//   try {
+//     let { name, description, color, size, eCategoryId, stocks, price } =
+//       req.body; // <-- add price
+//     const { id } = req.params;
+
+//     // Parse stocks if it's a string (from multipart/form-data)
+//     if (typeof stocks === "string") {
+//       stocks = JSON.parse(stocks);
+//     }
+
+//     // Parse color and size if sent as JSON strings
+//     if (typeof color === "string") color = JSON.parse(color);
+//     if (typeof size === "string") size = JSON.parse(size);
+//     if (typeof price === "string") price = parseFloat(price); // <-- parse price if string
+
+//     const eProduct = await prisma.eProduct.findUnique({ where: { id } });
+//     if (!eProduct) {
+//       return res
+//         .status(404)
+//         .json(jsonResponse(false, "EProduct not found", null));
+//     }
+
+//     let imageUrl = eProduct.image;
+//     if (req.file) {
+//       // Upload new image to Cloudinary
+//       const uploadResult = await new Promise((resolve, reject) => {
+//         uploadToCLoudinary(req.file, "eproduct", (error, result) => {
+//           if (error || !result.secure_url) {
+//             reject("Image upload failed");
+//           } else {
+//             resolve(result.secure_url);
+//           }
+//         });
+//       }).catch((err) => null);
+//       if (uploadResult) imageUrl = uploadResult;
+//     }
+
+//     // Update main product fields
+//     const updatedEProduct = await prisma.eProduct.update({
+//       where: { id },
+//       data: {
+//         name: name ?? eProduct.name,
+//         description: description ?? eProduct.description,
+//         color: color ?? eProduct.color,
+//         size: size ?? eProduct.size,
+//         eCategoryId: eCategoryId ?? eProduct.eCategoryId,
+//         image: imageUrl,
+//         price: price ?? eProduct.price, // <-- add price
+//       },
+//       include: { stocks: true, eCategory: true },
+//     });
+
+//     // Optionally update stocks (delete all and recreate, or upsert)
+//     if (stocks && Array.isArray(stocks)) {
+//       // Remove existing stocks
+//       await prisma.eProductStock.deleteMany({ where: { eProductId: id } });
+//       // Add new stocks
+//       await prisma.eProductStock.createMany({
+//         data: stocks.map((s) => ({
+//           eProductId: id,
+//           color: s.color,
+//           size: s.size,
+//           quantity: s.quantity ?? 0,
+//         })),
+//       });
+//     }
+
+//     // Return updated product with new stocks
+//     const result = await prisma.eProduct.findUnique({
+//       where: { id },
+//       include: { stocks: true, eCategory: true },
+//     });
+
+//     return res.status(200).json(jsonResponse(true, "EProduct updated", result));
+//   } catch (error) {
+//     console.log(error);
+//     return res.status(500).json(jsonResponse(false, error, null));
+//   }
+// };
+
+
 export const updateEProduct = async (req, res) => {
   try {
-    let { name, description, color, size, eCategoryId, stocks, price } =
-      req.body; // <-- add price
+    let {
+      name,
+      description,
+      color,
+      size,
+      eCategoryId,
+      stocks,
+      price,
+      removedImages, // 🔹 images to remove
+    } = req.body;
+
     const { id } = req.params;
 
-    // Parse stocks if it's a string (from multipart/form-data)
-    if (typeof stocks === "string") {
-      stocks = JSON.parse(stocks);
-    }
-
-    // Parse color and size if sent as JSON strings
+    // Parse JSON/string fields
+    if (typeof stocks === "string") stocks = JSON.parse(stocks);
     if (typeof color === "string") color = JSON.parse(color);
     if (typeof size === "string") size = JSON.parse(size);
-    if (typeof price === "string") price = parseFloat(price); // <-- parse price if string
+    if (typeof removedImages === "string")
+      removedImages = JSON.parse(removedImages);
+    if (typeof price === "string") price = parseFloat(price);
 
+    // Find product
     const eProduct = await prisma.eProduct.findUnique({ where: { id } });
     if (!eProduct) {
       return res
@@ -124,23 +214,24 @@ export const updateEProduct = async (req, res) => {
         .json(jsonResponse(false, "EProduct not found", null));
     }
 
-    let imageUrl = eProduct.image;
-    if (req.file) {
-      // Upload new image to Cloudinary
-      const uploadResult = await new Promise((resolve, reject) => {
-        uploadToCLoudinary(req.file, "eproduct", (error, result) => {
-          if (error || !result.secure_url) {
-            reject("Image upload failed");
-          } else {
-            resolve(result.secure_url);
-          }
-        });
-      }).catch((err) => null);
-      if (uploadResult) imageUrl = uploadResult;
+    // 🔹 Start with existing images
+    let updatedImages = [...(eProduct.images || [])];
+
+    // 🔹 Remove selected images
+    if (Array.isArray(removedImages) && removedImages.length > 0) {
+      updatedImages = updatedImages.filter(
+        (img) => !removedImages.includes(img)
+      );
     }
 
-    // Update main product fields
-    const updatedEProduct = await prisma.eProduct.update({
+    // 🔹 Upload new images
+    if (req.files && req.files.length > 0) {
+      const newImageUrls = await uploadToCLoudinary(req.files, "eproduct");
+      updatedImages.push(...newImageUrls);
+    }
+
+    // 🔹 Update product
+    await prisma.eProduct.update({
       where: { id },
       data: {
         name: name ?? eProduct.name,
@@ -148,17 +239,17 @@ export const updateEProduct = async (req, res) => {
         color: color ?? eProduct.color,
         size: size ?? eProduct.size,
         eCategoryId: eCategoryId ?? eProduct.eCategoryId,
-        image: imageUrl,
-        price: price ?? eProduct.price, // <-- add price
+        images: updatedImages,
+        price: price ?? eProduct.price,
       },
-      include: { stocks: true, eCategory: true },
     });
 
-    // Optionally update stocks (delete all and recreate, or upsert)
-    if (stocks && Array.isArray(stocks)) {
-      // Remove existing stocks
-      await prisma.eProductStock.deleteMany({ where: { eProductId: id } });
-      // Add new stocks
+    // 🔹 Update stocks (reset & recreate)
+    if (Array.isArray(stocks)) {
+      await prisma.eProductStock.deleteMany({
+        where: { eProductId: id },
+      });
+
       await prisma.eProductStock.createMany({
         data: stocks.map((s) => ({
           eProductId: id,
@@ -169,18 +260,27 @@ export const updateEProduct = async (req, res) => {
       });
     }
 
-    // Return updated product with new stocks
+    // 🔹 Final response
     const result = await prisma.eProduct.findUnique({
       where: { id },
       include: { stocks: true, eCategory: true },
     });
 
-    return res.status(200).json(jsonResponse(true, "EProduct updated", result));
+    return res
+      .status(200)
+      .json(jsonResponse(true, "EProduct updated successfully", result));
   } catch (error) {
-    console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+    console.error(error);
+    return res
+      .status(500)
+      .json(jsonResponse(false, error.message, null));
   }
 };
+
+
+
+
+
 
 // Get EProduct by ID
 export const getEProduct = async (req, res) => {

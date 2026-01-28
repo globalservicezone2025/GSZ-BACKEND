@@ -30,80 +30,12 @@ async function getDiscountForEProduct(eProduct) {
 
 // Create EProduct
 
-// export const createEProduct = async (req, res) => {
-//   try {
-//     let { name, description, color, size, eCategoryId, stocks, price } =
-//       req.body;
-
-//     // Parse stringified JSON fields
-//     if (typeof stocks === "string") stocks = JSON.parse(stocks);
-//     if (typeof color === "string") color = JSON.parse(color);
-//     if (typeof size === "string") size = JSON.parse(size);
-//     if (typeof price === "string") price = parseFloat(price);
-
-//     // Input validation
-//     const inputValidation = validateInput(
-//       [name, eCategoryId, price],
-//       ["Name", "Category", "Price"]
-//     );
-//     if (inputValidation) {
-//       return res.status(400).json(jsonResponse(false, inputValidation, null));
-//     }
-
-//     // Check category existence
-//     const eCategory = await prisma.eCategory.findUnique({
-//       where: { id: eCategoryId },
-//     });
-//     if (!eCategory) {
-//       return res
-//         .status(404)
-//         .json(jsonResponse(false, "ECategory not found", null));
-//     }
-
-//     // 🔹 Upload multiple images
-//     let imageUrls = [];
-//     if (req.files && req.files.length > 0) {
-//       imageUrls = await uploadToCLoudinary(req.files, "eproduct");
-//     }
-
-//     // 🔹 Create new product in DB
-//     const newEProduct = await prisma.eProduct.create({
-//       data: {
-//         name,
-//         description,
-//         color,
-//         size,
-//         images: imageUrls, // store multiple image URLs
-//         price,
-//         eCategoryId,
-//         stocks: {
-//           create:
-//             stocks?.map((s) => ({
-//               color: s.color,
-//               size: s.size,
-//               quantity: s.quantity ?? 0,
-//             })) || [],
-//         },
-//       },
-//       include: { stocks: true, eCategory: true },
-//     });
-
-//     // ✅ Response
-//     return res
-//       .status(201)
-//       .json(jsonResponse(true, "EProduct created successfully", newEProduct));
-//   } catch (error) {
-//     console.error("Error creating product:", error);
-//     return res.status(500).json(jsonResponse(false, error.message, null));
-//   }
-// };
-
-// Create EProduct API
 export const createEProduct = async (req, res) => {
   try {
-    let { name, description, color, size, eCategoryId, stocks, price } = req.body;
+    let { name, description, color, size, eCategoryId, stocks, price } =
+      req.body;
 
-    // Parse stringified JSON fields if needed
+    // Parse stringified JSON fields
     if (typeof stocks === "string") stocks = JSON.parse(stocks);
     if (typeof color === "string") color = JSON.parse(color);
     if (typeof size === "string") size = JSON.parse(size);
@@ -123,7 +55,9 @@ export const createEProduct = async (req, res) => {
       where: { id: eCategoryId },
     });
     if (!eCategory) {
-      return res.status(404).json(jsonResponse(false, "ECategory not found", null));
+      return res
+        .status(404)
+        .json(jsonResponse(false, "ECategory not found", null));
     }
 
     // 🔹 Upload multiple images
@@ -137,7 +71,7 @@ export const createEProduct = async (req, res) => {
       data: {
         name,
         description,
-        color, // main product color (optional)
+        color,
         size,
         images: imageUrls, // store multiple image URLs
         price,
@@ -145,42 +79,26 @@ export const createEProduct = async (req, res) => {
         stocks: {
           create:
             stocks?.map((s) => ({
-              colorId: s.color?.id, // <-- store colorId relation
+              color: s.color,
               size: s.size,
               quantity: s.quantity ?? 0,
             })) || [],
         },
       },
-      include: {
-        stocks: {
-          include: { color: true }, // <-- include color relation
-        },
-        eCategory: true,
-      },
+      include: { stocks: true, eCategory: true },
     });
-
-    // 🔹 Prepare email-friendly stock array
-    const stocksWithColorName = newEProduct.stocks.map((stock) => ({
-      ...stock,
-      colorName: stock.color?.name || stock.color?.code || "N/A",
-    }));
-
-    // Optional: replace original stocks with colorName version
-    const responseProduct = {
-      ...newEProduct,
-      stocks: stocksWithColorName,
-    };
 
     // ✅ Response
     return res
       .status(201)
-      .json(jsonResponse(true, "EProduct created successfully", responseProduct));
+      .json(jsonResponse(true, "EProduct created successfully", newEProduct));
   } catch (error) {
     console.error("Error creating product:", error);
     return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
 
+// Create EProduct API
 
 // Update EProduct
 // export const updateEProduct = async (req, res) => {

@@ -129,11 +129,95 @@ export const register = async (req, res) => {
   }
 };
 
-//login with password
+// //login with password
+// export const login = async (req, res) => {
+//   try {
+//     return await prisma.$transaction(async (tx) => {
+//       //login with phone or email
+//       const user = await tx.user.findFirst({
+//         where: {
+//           OR: [{ email: req.body.email }, { phone: req.body.phone }],
+//           isDeleted: false,
+//         },
+//       });
+
+//       if (!user)
+//         return res
+//           .status(404)
+//           .json(jsonResponse(false, "Wrong credentials", null));
+
+//       if (user.isActive === false) {
+//         return res
+//           .status(401)
+//           .json(jsonResponse(false, "You are not authenticated!", null));
+//       }
+
+//       if (typeof user.password !== "string") {
+//         user.password =
+//           "$2a$10$75eF0ZlLB4irbWBgeprUTuhlrinRqj0oFrh8l.Oe8jCTw20/GVmui";
+//       }
+
+//       const checkPassword = bcrypt.compareSync(
+//         req.body.password,
+//         user.password
+//       );
+
+//       if (!checkPassword)
+//         return res
+//           .status(404)
+//           .json(jsonResponse(false, "Wrong password", null));
+
+//       //get modules for logged in user
+//       const roleModuleList = await tx.roleModule.findMany({
+//         where: { roleId: user.roleId ?? undefined, isDeleted: false },
+//         include: { module: true },
+//       });
+
+//       const roleModuleList_length = roleModuleList.length;
+
+//       const module_names = [];
+
+//       for (let i = 0; i < roleModuleList_length; i++) {
+//         module_names.push(roleModuleList[i].module.name);
+//       }
+
+//       const roleName = await tx.role.findFirst({
+//         where: { id: user.roleId, isDeleted: false },
+//       });
+
+//       const token = jwtSign({
+//         id: user.id,
+//         parentId: user.parentId ? user.parentId : user.id,
+//         phone: user.phone,
+//         email: user.email,
+//         roleId: user.roleId,
+//         roleName: roleName.name,
+//         isActive: user.isActive,
+//         moduleNames: module_names,
+//       });
+
+//       const { password, otp, otpCount, ...others } = user;
+
+//       res
+//         .cookie("accessToken", token, {
+//           httpOnly: true,
+//         })
+//         .status(200)
+//         .json(
+//           jsonResponse(true, "Logged In", { ...others, accessToken: token })
+//         );
+//     });
+//   } catch (error) {
+//     console.log(error);
+//     return res.status(500).json(jsonResponse(false, error, null));
+//   }
+// };
+
+// login with plain-text password
 export const login = async (req, res) => {
   try {
     return await prisma.$transaction(async (tx) => {
-      //login with phone or email
+      // login with phone or email
       const user = await tx.user.findFirst({
         where: {
           OR: [{ email: req.body.email }, { phone: req.body.phone }],
@@ -146,40 +230,27 @@ export const login = async (req, res) => {
           .status(404)
           .json(jsonResponse(false, "Wrong credentials", null));
 
-      if (user.isActive === false) {
+      if (!user.isActive) {
         return res
           .status(401)
           .json(jsonResponse(false, "You are not authenticated!", null));
       }
 
-      if (typeof user.password !== "string") {
-        user.password =
-          "$2a$10$75eF0ZlLB4irbWBgeprUTuhlrinRqj0oFrh8l.Oe8jCTw20/GVmui";
-      }
-
-      const checkPassword = bcrypt.compareSync(
-        req.body.password,
-        user.password
-      );
+      // check plain-text password
+      const checkPassword = req.body.password === user.password;
 
       if (!checkPassword)
         return res
           .status(404)
           .json(jsonResponse(false, "Wrong password", null));
 
-      //get modules for logged in user
+      // get modules for logged-in user
       const roleModuleList = await tx.roleModule.findMany({
         where: { roleId: user.roleId ?? undefined, isDeleted: false },
         include: { module: true },
       });
 
-      const roleModuleList_length = roleModuleList.length;
-
-      const module_names = [];
-
-      for (let i = 0; i < roleModuleList_length; i++) {
-        module_names.push(roleModuleList[i].module.name);
-      }
+      const module_names = roleModuleList.map(rm => rm.module.name);
 
       const roleName = await tx.role.findFirst({
         where: { id: user.roleId, isDeleted: false },
@@ -187,7 +258,7 @@ export const login = async (req, res) => {
 
       const token = jwtSign({
         id: user.id,
-        parentId: user.parentId ? user.parentId : user.id,
+        parentId: user.parentId || user.id,
         phone: user.phone,
         email: user.email,
         roleId: user.roleId,
@@ -212,6 +283,13 @@ export const login = async (req, res) => {
     return res.status(500).json(jsonResponse(false, error, null));
   }
 };
+
+
+
+
+
+
+
 
 //send login otp to mail
 export const sendLoginOtp = async (req, res) => {

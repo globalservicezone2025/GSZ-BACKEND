@@ -9,10 +9,15 @@ import {
   getEOrderByIdOrEmailOrPhone,
 } from "../../controllers/eOrder/eOrder.js";
 
+import multer from "multer";
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
 const router = express.Router();
 
 // Create EOrder
-router.post("/v1/eorders", createEOrder);
+router.post("/v1/eorders", upload.array("note", 3),  createEOrder);
 
 // Update EOrder
 router.put("/v1/eorders/:id", updateEOrder);

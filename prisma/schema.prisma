@@ -383,6 +383,7 @@ model EOrder {
   paymentType    String
   name           String?
   note           String?
+  paymentSS      String?
   cart           Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
 }
 

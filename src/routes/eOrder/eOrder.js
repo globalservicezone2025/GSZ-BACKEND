@@ -17,7 +17,7 @@ const upload = multer({ storage });
 const router = express.Router();
 
 // Create EOrder
-router.post("/v1/eorders", upload.array("note", 3),  createEOrder);
+router.post("/v1/eorders", upload.array("files", 3), createEOrder);
 
 // Update EOrder
 router.put("/v1/eorders/:id", updateEOrder);

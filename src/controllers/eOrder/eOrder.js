@@ -3,6 +3,8 @@ import jsonResponse from "../../utils/jsonResponse.js";
 import axios from "axios";
 import SSLCommerzPayment from "sslcommerz-lts";
 import nodemailer from "nodemailer";
+import uploadToCloudinary from "../../utils/uploadToCloudinary.js";
+
 
 
 // export const createEOrder = async (req, res) => {
@@ -179,6 +181,185 @@ import nodemailer from "nodemailer";
 // Update EOrder
 
 
+// export const createEOrder = async (req, res) => {
+//   try {
+//     const {
+//       cartId,
+//       name,
+//       email,
+//       phoneNumber,
+//       address,
+//       paymentMethod,
+//       paymentType,
+//       paymentDone,
+//       status,
+//       data,
+//       deliveryCharge,
+//       note,
+//     } = req.body;
+
+//     // 🔹 Upload multiple images (max 3)
+//     let noteImageUrls = null;
+//     if (req.files && req.files.length > 0) {
+//       const uploaded = await uploadToCloudinary(req.files, "eorder-screenshots");
+//       if (uploaded && uploaded.length > 0) {
+//         noteImageUrls = JSON.stringify(uploaded);
+//       }
+//     }
+
+//     // Fetch cart items with product info
+//     const cart = await prisma.cart.findUnique({
+//       where: { id: cartId },
+//       include: { items: { include: { eProduct: true } } },
+//     });
+
+//     if (!cart) {
+//       return res.status(404).json(jsonResponse(false, "Cart not found", null));
+//     }
+
+//     // Calculate subtotal, VAT, total
+//     const subtotal = cart.items.reduce(
+//       (sum, item) => sum + (item.eProduct?.price || 0) * item.quantity,
+//       0
+//     );
+//     const vat = subtotal * 0.15; // 15% VAT
+//     const total = subtotal + vat + deliveryCharge;
+
+//     // Create the order
+//     const order = await prisma.eOrder.create({
+//       data: {
+//         name,
+//         ...(email && { email }),
+//         phoneNumber,
+//         address,
+//         paymentMethod,
+//         paymentType,
+//         paymentDone,
+//         status: status ?? "PENDING",
+//         data,
+//         vat,
+//         deliveryCharge,
+//         note: noteImageUrls || note || null,
+//         cart: { connect: { id: cartId } },
+//       },
+//       include: { cart: { include: { items: { include: { eProduct: true } } } } },
+//     });
+
+//     // Generate email body
+//     const generateEmailBody = (recipientName, isCustomer = false) => `
+//       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+//         <h2 style="color: #5255df;">${isCustomer ? "Thank You for Your Order!" : "New Order Received!"}</h2>
+//         <p>${isCustomer
+//           ? `Dear <b>${recipientName}</b>, thank you for shopping with GSZ MART! Your order has been successfully placed.`
+//           : `A new order has been placed by <b>${recipientName}</b>.`}</p>
+
+//         <h3>Order Summary</h3>
+//         <table style="width: 100%; border-collapse: collapse;">
+//           <thead>
+//             <tr style="background-color: #f7f7f7;">
+//               <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Product Name</th>
+//               <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Quantity</th>
+//               <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Size</th>
+//               <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Color</th>
+//               <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Price</th>
+//               <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Subtotal</th>
+//             </tr>
+//           </thead>
+//           <tbody>
+//             ${cart.items
+//               .map(
+//                 (item) => `
+//               <tr>
+//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.eProduct?.name || "Unnamed Product"}</td>
+//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.quantity}</td>
+//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.size}</td>
+//                 <td style="border: 1px solid #ddd; padding: 8px;">${item.color?.name}</td>
+//                 <td style="border: 1px solid #ddd; padding: 8px;">৳${(item.eProduct?.price || 0).toFixed(2)}</td>
+//                 <td style="border: 1px solid #ddd; padding: 8px;">৳${(
+//                   (item.eProduct?.price || 0) * item.quantity
+//                 ).toFixed(2)}</td>
+//               </tr>
+//             `
+//               )
+//               .join("")}
+//           </tbody>
+//         </table>
+
+//         <p><b>Delivery Address:</b> ${address}</p>
+//         <p><b>Phone Number:</b> ${phoneNumber}</p>
+
+//         <p><b>Payment Method:</b> ${paymentMethod === "cod" ? "Cash on Delivery" : paymentType}</p>
+
+//         <p><b>Subtotal:</b> ৳${subtotal.toFixed(2)}</p>
+//         <p><b>VAT (15%):</b> ৳${vat.toFixed(2)}</p>
+//         <p><b>Delivery Charge:</b> ৳${deliveryCharge}</p>
+
+//         <p style="font-size: 20px; font-weight: 700; color: #e74c3c; margin-top: 12px;">
+//           Total: ৳${total.toFixed(2)}
+//         </p>
+
+//         ${isCustomer ? `<p style="font-size: 16px; font-weight: 500; color: #333;">We appreciate your trust and hope you enjoy your purchase!</p>` : ""}
+
+//         <h3>Company Information</h3>
+//         <p>
+//           Primary Location:<br/>
+//           1224 E Baltimore Ave, Fort Worth, TX, 76104, United States<br/>
+//           📞 Phone: +1 409-419-3426
+//         </p>
+//         <p>
+//           Secondary Location:<br/>
+//           House: 331/11, Flat# 6C, TV Link Road, East Rampura, Rampura, Dhaka -1219, Bangladesh<br/>
+//           📞 Phone: +8801729631431
+//         </p>
+//         <p>
+//           <a href="https://www.facebook.com/gszmart" target="_blank" style="color: #5255df; font-size: 18px; font-weight: 700; text-decoration: none;">GSZ MART Facebook</a><br/>
+//           <a href="https://www.globalservicezone.com/e-commerce" target="_blank" style="color: #5255df; font-size: 18px; font-weight: 700; text-decoration: none;">globalservicezone.com E-Commerce</a>
+//         </p>
+//       </div>
+//     `;
+
+//     // Nodemailer transporter
+//     const transporter = nodemailer.createTransport({
+//       service: "gmail",
+//       auth: {
+//         user: process.env.GMAIL_ID,
+//         pass: process.env.GMAIL_PASS,
+//       },
+//     });
+
+//     // Send to Admin (always)
+//     await transporter.sendMail({
+//       from: `"GSZ MART" <${process.env.GMAIL_ID}>`,
+//       to: "info@globalservicezone.com",
+//       subject: `New Order Received - ${name}`,
+//       html: generateEmailBody(name, false),
+//     });
+
+//     // Send to Customer only if email is provided
+//     if (email) {
+//       await transporter.sendMail({
+//         from: `"GSZ MART" <${process.env.GMAIL_ID}>`,
+//         to: email,
+//         subject: `Thank You for Your Order, ${name}`,
+//         html: generateEmailBody(name, true),
+//       });
+//     }
+
+//     return res
+//       .status(201)
+//       .json(jsonResponse(true, "Order created, emails sent to admin and customer", order));
+
+//   } catch (error) {
+//     console.log(error);
+//     return res
+//       .status(500)
+//       .json(jsonResponse(false, error.message || "Internal Server Error", null));
+//   }
+// };
+
+
+// src/controllers/eOrderController.js
+
 export const createEOrder = async (req, res) => {
   try {
     const {
@@ -196,12 +377,22 @@ export const createEOrder = async (req, res) => {
       note,
     } = req.body;
 
-    // 🔹 Upload multiple images (max 3)
-    let noteImageUrls = null;
+    // ✅ Validate cartId
+    if (!cartId) {
+      return res.status(400).json({
+        success: false,
+        message: "Cart ID is required",
+        data: null,
+      });
+    }
+
+    // 🔹 Upload payment screenshots to Cloudinary (max 3)
+    let paymentSS = null;
     if (req.files && req.files.length > 0) {
       const uploaded = await uploadToCloudinary(req.files, "eorder-screenshots");
       if (uploaded && uploaded.length > 0) {
-        noteImageUrls = JSON.stringify(uploaded);
+        // uploadToCloudinary returns array of URL strings directly
+        paymentSS = JSON.stringify(uploaded);
       }
     }
 
@@ -212,7 +403,11 @@ export const createEOrder = async (req, res) => {
     });
 
     if (!cart) {
-      return res.status(404).json(jsonResponse(false, "Cart not found", null));
+      return res.status(404).json({
+        success: false,
+        message: "Cart not found",
+        data: null,
+      });
     }
 
     // Calculate subtotal, VAT, total
@@ -221,7 +416,7 @@ export const createEOrder = async (req, res) => {
       0
     );
     const vat = subtotal * 0.15; // 15% VAT
-    const total = subtotal + vat + deliveryCharge;
+    const total = subtotal + vat + Number(deliveryCharge);
 
     // Create the order
     const order = await prisma.eOrder.create({
@@ -232,35 +427,47 @@ export const createEOrder = async (req, res) => {
         address,
         paymentMethod,
         paymentType,
-        paymentDone,
+        paymentDone: paymentDone === "true" || paymentDone === true,
         status: status ?? "PENDING",
-        data,
+        data: data === "true" || data === true,
         vat,
-        deliveryCharge,
-        note: noteImageUrls || note || null,
+        deliveryCharge: Number(deliveryCharge),
+        note: note || null, 
+        paymentSS: paymentSS,
+       // text note only
         cart: { connect: { id: cartId } },
       },
-      include: { cart: { include: { items: { include: { eProduct: true } } } } },
+      include: {
+        cart: { include: { items: { include: { eProduct: true } } } },
+      },
     });
 
     // Generate email body
     const generateEmailBody = (recipientName, isCustomer = false) => `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2 style="color: #5255df;">${isCustomer ? "Thank You for Your Order!" : "New Order Received!"}</h2>
-        <p>${isCustomer
-          ? `Dear <b>${recipientName}</b>, thank you for shopping with GSZ MART! Your order has been successfully placed.`
-          : `A new order has been placed by <b>${recipientName}</b>.`}</p>
+        <h2 style="color: #5255df;">
+          ${isCustomer ? "Thank You for Your Order!" : "New Order Received!"}
+        </h2>
+
+        <p>
+          ${
+            isCustomer
+              ? `Dear <b>${recipientName}</b>, thank you for shopping with GSZ MART! Your order has been successfully placed.`
+              : `A new order has been placed by <b>${recipientName}</b>.`
+          }
+        </p>
 
         <h3>Order Summary</h3>
-        <table style="width: 100%; border-collapse: collapse;">
+
+        <table style="width:100%;border-collapse:collapse;">
           <thead>
-            <tr style="background-color: #f7f7f7;">
-              <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Product Name</th>
-              <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Quantity</th>
-              <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Size</th>
-              <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Color</th>
-              <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Price</th>
-              <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Subtotal</th>
+            <tr style="background-color:#f7f7f7;">
+              <th style="border:1px solid #ddd;padding:8px;">Product</th>
+              <th style="border:1px solid #ddd;padding:8px;">Qty</th>
+              <th style="border:1px solid #ddd;padding:8px;">Size</th>
+              <th style="border:1px solid #ddd;padding:8px;">Color</th>
+              <th style="border:1px solid #ddd;padding:8px;">Price</th>
+              <th style="border:1px solid #ddd;padding:8px;">Subtotal</th>
             </tr>
           </thead>
           <tbody>
@@ -268,50 +475,32 @@ export const createEOrder = async (req, res) => {
               .map(
                 (item) => `
               <tr>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.eProduct?.name || "Unnamed Product"}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.quantity}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.size}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.color?.name}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">৳${(item.eProduct?.price || 0).toFixed(2)}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">৳${(
-                  (item.eProduct?.price || 0) * item.quantity
-                ).toFixed(2)}</td>
-              </tr>
-            `
+                <td style="border:1px solid #ddd;padding:8px;">${item.eProduct?.name || "Unnamed Product"}</td>
+                <td style="border:1px solid #ddd;padding:8px;">${item.quantity}</td>
+                <td style="border:1px solid #ddd;padding:8px;">${item.size}</td>
+                <td style="border:1px solid #ddd;padding:8px;">${item.color?.name}</td>
+                <td style="border:1px solid #ddd;padding:8px;">৳${(item.eProduct?.price || 0).toFixed(2)}</td>
+                <td style="border:1px solid #ddd;padding:8px;">৳${((item.eProduct?.price || 0) * item.quantity).toFixed(2)}</td>
+              </tr>`
               )
               .join("")}
           </tbody>
         </table>
 
         <p><b>Delivery Address:</b> ${address}</p>
-        <p><b>Phone Number:</b> ${phoneNumber}</p>
-
+        <p><b>Phone:</b> ${phoneNumber}</p>
         <p><b>Payment Method:</b> ${paymentMethod === "cod" ? "Cash on Delivery" : paymentType}</p>
-
         <p><b>Subtotal:</b> ৳${subtotal.toFixed(2)}</p>
         <p><b>VAT (15%):</b> ৳${vat.toFixed(2)}</p>
-        <p><b>Delivery Charge:</b> ৳${deliveryCharge}</p>
-
-        <p style="font-size: 20px; font-weight: 700; color: #e74c3c; margin-top: 12px;">
-          Total: ৳${total.toFixed(2)}
-        </p>
-
-        ${isCustomer ? `<p style="font-size: 16px; font-weight: 500; color: #333;">We appreciate your trust and hope you enjoy your purchase!</p>` : ""}
-
+        <p><b>Delivery Charge:</b> ৳${Number(deliveryCharge).toFixed(2)}</p>
+        <p style="font-size:20px;font-weight:700;color:#e74c3c;">Total: ৳${total.toFixed(2)}</p>
+        ${isCustomer ? `<p style="font-size:16px;">We appreciate your trust and hope you enjoy your purchase!</p>` : ""}
         <h3>Company Information</h3>
+        <p>Primary Location:<br/>1224 E Baltimore Ave, Fort Worth, TX, 76104, United States<br/>📞 +1 409-419-3426</p>
+        <p>Bangladesh Office:<br/>House 331/11, Flat 6C, TV Link Road, East Rampura, Dhaka 1219<br/>📞 +8801729631431</p>
         <p>
-          Primary Location:<br/>
-          1224 E Baltimore Ave, Fort Worth, TX, 76104, United States<br/>
-          📞 Phone: +1 409-419-3426
-        </p>
-        <p>
-          Secondary Location:<br/>
-          House: 331/11, Flat# 6C, TV Link Road, East Rampura, Rampura, Dhaka -1219, Bangladesh<br/>
-          📞 Phone: +8801729631431
-        </p>
-        <p>
-          <a href="https://www.facebook.com/gszmart" target="_blank" style="color: #5255df; font-size: 18px; font-weight: 700; text-decoration: none;">GSZ MART Facebook</a><br/>
-          <a href="https://www.globalservicezone.com/e-commerce" target="_blank" style="color: #5255df; font-size: 18px; font-weight: 700; text-decoration: none;">globalservicezone.com E-Commerce</a>
+          <a href="https://www.facebook.com/gszmart">GSZ MART Facebook</a><br/>
+          <a href="https://www.globalservicezone.com/e-commerce">globalservicezone.com</a>
         </p>
       </div>
     `;
@@ -325,7 +514,7 @@ export const createEOrder = async (req, res) => {
       },
     });
 
-    // Send to Admin (always)
+    // Send email to admin
     await transporter.sendMail({
       from: `"GSZ MART" <${process.env.GMAIL_ID}>`,
       to: "info@globalservicezone.com",
@@ -333,7 +522,7 @@ export const createEOrder = async (req, res) => {
       html: generateEmailBody(name, false),
     });
 
-    // Send to Customer only if email is provided
+    // Send email to customer if email provided
     if (email) {
       await transporter.sendMail({
         from: `"GSZ MART" <${process.env.GMAIL_ID}>`,
@@ -343,22 +532,16 @@ export const createEOrder = async (req, res) => {
       });
     }
 
-    return res
-      .status(201)
-      .json(jsonResponse(true, "Order created, emails sent to admin and customer", order));
-
+    return res.status(201).json(
+      jsonResponse(true, "Order created, emails sent to admin and customer", order)
+    );
   } catch (error) {
     console.log(error);
-    return res
-      .status(500)
-      .json(jsonResponse(false, error.message || "Internal Server Error", null));
+    return res.status(500).json(
+      jsonResponse(false, error.message || "Internal Server Error", null)
+    );
   }
 };
-
-
-
-
-
 
 export const updateEOrder = async (req, res) => {
   try {

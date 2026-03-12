@@ -2,28 +2,96 @@ import prisma from "../../utils/prismaClient.js";
 import jsonResponse from "../../utils/jsonResponse.js";
 
 // Create EReview
+// export const createEReview = async (req, res) => {
+//   try {
+//     const { rating, review, productId, email, phoneNumber } = req.body;
+
+//     const eProduct = await prisma.eProduct.findUnique({
+//       where: { id: productId },
+//     });
+//     if (!eProduct) {
+//       return res
+//         .status(404)
+//         .json(jsonResponse(false, "EProduct not found", null));
+//     }
+
+//     // Check if review already exists for this product and contact
+//     const existingReview = await prisma.eReview.findFirst({
+//       where: {
+//         productId,
+//         OR: [
+//           { phoneNumber: phoneNumber || undefined },
+//           { email: email || undefined },
+//         ],
+//       },
+//     });
+//     if (existingReview) {
+//       return res
+//         .status(400)
+//         .json(jsonResponse(false, "You have already reviewed this product", null));
+//     }
+
+//     // Check for delivered order with matching phoneNumber/email and product
+//     const deliveredOrder = await prisma.eOrder.findFirst({
+//       where: {
+//         status: "DELIVERED",
+//         OR: [
+//           { phoneNumber: phoneNumber || undefined },
+//           { email: email || undefined },
+//         ],
+//         cart: {
+//           items: {
+//             some: { eProductId: productId },
+//           },
+//         },
+//       },
+//     });
+
+//     if (!deliveredOrder) {
+//       return res
+//         .status(400)
+//         .json(
+//           jsonResponse(
+//             false,
+//             "No delivered order found for this product and contact",
+//             null
+//           )
+//         );
+//     }
+
+//     // Get name from deliveredOrder
+//     const name = deliveredOrder.name || "";
+
+//     const eReview = await prisma.eReview.create({
+//       data: { name, rating, review, productId, email, phoneNumber },
+//     });
+
+//     return res.status(201).json(jsonResponse(true, "Review created", eReview));
+//   } catch (error) {
+//     console.log(error);
+//     return res.status(500).json(jsonResponse(false, error, null));
+//   }
+// };
+
+
+
 export const createEReview = async (req, res) => {
   try {
-    const { rating, review, productId, email, phoneNumber } = req.body;
+    const { name, rating, productId, review } = req.body;
 
+    // Check if product exists
     const eProduct = await prisma.eProduct.findUnique({
       where: { id: productId },
     });
     if (!eProduct) {
       return res
         .status(404)
-        .json(jsonResponse(false, "EProduct not found", null));
+        .json(jsonResponse(false, "Product not found", null));
     }
 
-    // Check if review already exists for this product and contact
+    // Optional: check if the same user (by name) already reviewed
     const existingReview = await prisma.eReview.findFirst({
-      where: {
-        productId,
-        OR: [
-          { phoneNumber: phoneNumber || undefined },
-          { email: email || undefined },
-        ],
-      },
+      where: { productId, name },
     });
     if (existingReview) {
       return res
@@ -31,47 +99,32 @@ export const createEReview = async (req, res) => {
         .json(jsonResponse(false, "You have already reviewed this product", null));
     }
 
-    // Check for delivered order with matching phoneNumber/email and product
-    const deliveredOrder = await prisma.eOrder.findFirst({
-      where: {
-        status: "DELIVERED",
-        OR: [
-          { phoneNumber: phoneNumber || undefined },
-          { email: email || undefined },
-        ],
-        cart: {
-          items: {
-            some: { eProductId: productId },
-          },
-        },
-      },
-    });
-
-    if (!deliveredOrder) {
-      return res
-        .status(400)
-        .json(
-          jsonResponse(
-            false,
-            "No delivered order found for this product and contact",
-            null
-          )
-        );
-    }
-
-    // Get name from deliveredOrder
-    const name = deliveredOrder.name || "";
-
+    // Create review
     const eReview = await prisma.eReview.create({
-      data: { name, rating, review, productId, email, phoneNumber },
+      data: {
+        name,
+        rating,
+        review, // optional text
+        productId,
+        email: "", // leave blank
+        phoneNumber: "", // leave blank
+      },
     });
 
     return res.status(201).json(jsonResponse(true, "Review created", eReview));
   } catch (error) {
     console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+    return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
+
+
+
+
+
+
+
+
 
 // Update EReview
 export const updateEReview = async (req, res) => {

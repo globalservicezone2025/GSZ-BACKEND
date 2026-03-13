@@ -159,11 +159,12 @@ export const updateEReview = async (req, res) => {
 
 
 // Get all EReviews
+// Get all EReviews
 export const getEReviews = async (req, res) => {
   try {
     const eReviews = await prisma.eReview.findMany({
       include: {
-        EProduct: {
+        eProduct: {
           select: {
             id: true,
             name: true,

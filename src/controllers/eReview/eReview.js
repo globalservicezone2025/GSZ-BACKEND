@@ -145,15 +145,39 @@ export const updateEReview = async (req, res) => {
 };
 
 // Get all EReviews
+// export const getEReviews = async (req, res) => {
+//   try {
+//     const eReviews = await prisma.eReview.findMany({
+//       orderBy: { createdAt: "desc" },
+//     });
+//     return res.status(200).json(jsonResponse(true, "Reviews found", eReviews));
+//   } catch (error) {
+//     console.log(error);
+//     return res.status(500).json(jsonResponse(false, error, null));
+//   }
+// };
+
+
+// Get all EReviews
 export const getEReviews = async (req, res) => {
   try {
     const eReviews = await prisma.eReview.findMany({
+      include: {
+        EProduct: {
+          select: {
+            id: true,
+            name: true,
+            images: true,
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
+
     return res.status(200).json(jsonResponse(true, "Reviews found", eReviews));
   } catch (error) {
     console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+    return res.status(500).json(jsonResponse(false, error?.message || "Server Error", null));
   }
 };
 

@@ -4,6 +4,7 @@ import prisma from "../../utils/prismaClient.js";
 import uploadToCLoudinary from "../../utils/uploadToCloudinary.js";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary.js";
 import validateInput from "../../utils/validateInput.js";
+import uploadToCloudinary from "../../utils/uploadToCloudinary.js";
 
 const module_name = "user";
 
@@ -191,6 +192,21 @@ export const getUser = async (req, res) => {
 //update user
 export const updateUser = async (req, res) => {
   try {
+    // ✅ Image upload transaction এর বাইরে
+    let imageUrl = null;
+
+    if (req.file) {
+      const uploadedUrls = await uploadToCloudinary(req.file, "users");
+
+      if (!uploadedUrls || uploadedUrls.length === 0) {
+        return res
+          .status(400)
+          .json(jsonResponse(false, "Image upload failed. Try again.", null));
+      }
+
+      imageUrl = uploadedUrls[0];
+    }
+
     return await prisma.$transaction(async (tx) => {
       const {
         roleId,
@@ -208,7 +224,7 @@ export const updateUser = async (req, res) => {
         designation,
       } = req.body;
 
-      //validate input
+      // Validate input
       const inputValidation = validateInput(
         [name, email, phone, address],
         ["Name", "Email", "Phone", "Address"]
@@ -229,50 +245,25 @@ export const updateUser = async (req, res) => {
           .json(jsonResponse(false, "User not found", null));
       }
 
-      // Handle image upload
-      let imageUrl = findUser.image;
-      if (req.file) {
-        const result = await new Promise((resolve, reject) => {
-          uploadToCLoudinary(req.file, module_name, (error, result) => {
-            if (error) {
-              console.error("error", error);
-              return reject(
-                res.status(404).json(jsonResponse(false, error, null))
-              );
-            }
+      // ✅ নতুন image না দিলে পুরনোটা রাখো
+      let finalImageUrl = imageUrl || findUser.image;
 
-            if (!result.secure_url) {
-              return reject(
-                res
-                  .status(404)
-                  .json(
-                    jsonResponse(
-                      false,
-                      "Something went wrong while uploading image. Try again",
-                      null
-                    )
-                  )
-              );
-            }
+      // ✅ নতুন image দিলে পুরনোটা Cloudinary থেকে delete করো
+      if (imageUrl && findUser.image) {
+        const defaultImage = "https://cdn-icons-png.flaticon.com/512/9368/9368192.png";
+        if (findUser.image !== defaultImage) {
+          const publicId = findUser.image
+            .split("/")
+            .slice(-2)
+            .join("/")
+            .replace(/\.[^/.]+$/, "");
 
-            resolve(result);
-          });
-        });
-
-        imageUrl = result.secure_url;
-
-        // Delete previous uploaded image
-        if (findUser.image && findUser.image !== "images/user/user.png") {
-          await deleteFromCloudinary(findUser.image, (error, result) => {
-            if (error) {
-              console.log("Error deleting previous image:", error);
-            }
-          });
+          await cloudinary.uploader.destroy(publicId);
         }
       }
 
       // Update user
-      const updateUser = await tx.user.update({
+      const updatedUser = await tx.user.update({
         where: { id: req.params.id },
         data: {
           roleId,
@@ -285,24 +276,24 @@ export const updateUser = async (req, res) => {
           city,
           country,
           postalCode,
-          image: imageUrl,
+          image: finalImageUrl,
           initialPaymentAmount: initialPaymentAmount
             ? parseFloat(initialPaymentAmount)
-            : null, // Parse to float or set to null
+            : null,
           initialPaymentDue: initialPaymentDue
             ? parseFloat(initialPaymentDue)
-            : null, // Parse to float or set to null
+            : null,
           installmentTime: installmentTime
             ? parseFloat(installmentTime)
-            : null, // Parse to float or set to null
+            : null,
           updatedBy: req.user.id,
         },
       });
 
-      if (updateUser) {
+      if (updatedUser) {
         return res
           .status(200)
-          .json(jsonResponse(true, `Profile has been updated.`, updateUser));
+          .json(jsonResponse(true, "Profile has been updated.", updatedUser));
       } else {
         return res
           .status(404)
@@ -311,7 +302,7 @@ export const updateUser = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+    return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
 

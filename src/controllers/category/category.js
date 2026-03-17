@@ -12,17 +12,32 @@ const module_name = "category";
 //create category
 export const createCategory = async (req, res) => {
   try {
-    return await prisma.$transaction(async (tx) => {
-      const { name, text, serial } = req.body; // Include serial
+    // ✅ Image upload transaction এর বাইরে
+    let imageUrl = null;
 
-      //validate input
+    if (req.file) {
+      const uploadedUrls = await uploadToCLoudinary(req.file, "categories");
+
+      if (!uploadedUrls || uploadedUrls.length === 0) {
+        return res
+          .status(400)
+          .json(jsonResponse(false, "Image upload failed. Try again.", null));
+      }
+
+      imageUrl = uploadedUrls[0];
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      const { name, text, serial } = req.body;
+
+      // Validate input
       const inputValidation = validateInput([name], ["Name"]);
 
       if (inputValidation) {
         return res.status(400).json(jsonResponse(false, inputValidation, null));
       }
 
-      //get user name for slugify
+      // Get user name for slugify
       const user = await tx.user.findFirst({
         where: { id: req.user.parentId ? req.user.parentId : req.user.id },
       });
@@ -32,7 +47,7 @@ export const createCategory = async (req, res) => {
           .status(404)
           .json(jsonResponse(false, "This user does not exist", null));
 
-      //check if category exists
+      // Check if category exists
       const category = await tx.category.findFirst({
         where: {
           userId: req.user.parentId ? req.user.parentId : req.user.id,
@@ -55,72 +70,34 @@ export const createCategory = async (req, res) => {
             )
           );
 
-      //if there is no image selected
-      if (!req.file) {
-        //create category
-        const newCategory = await prisma.category.create({
-          data: {
-            userId: req.user.parentId ? req.user.parentId : req.user.id,
-            name,
-            text,
-            serial: parseInt(serial) || 0, // Parse serial to integer
-            createdBy: req.user.id,
-            slug: `${slugify(user.name)}-${slugify(name)}`,
-          },
-        });
-
-        if (newCategory) {
-          return res
-            .status(200)
-            .json(jsonResponse(true, "Category has been created", newCategory));
-        }
-      }
-
-      //upload image
-      await uploadToCLoudinary(req.file, module_name, async (error, result) => {
-        if (error) {
-          console.error("error", error);
-          return res.status(404).json(jsonResponse(false, error, null));
-        }
-
-        if (!result.secure_url) {
-          return res
-            .status(404)
-            .json(
-              jsonResponse(
-                false,
-                "Something went wrong while uploading image. Try again",
-                null
-              )
-            );
-        }
-
-        //create category
-        const newCategory = await prisma.category.create({
-          data: {
-            userId: req.user.parentId ? req.user.parentId : req.user.id,
-            name,
-            text,
-            image: result.secure_url,
-            serial: parseInt(serial) || 0, // Parse serial to integer
-            createdBy: req.user.id,
-            slug: `${slugify(user.name)}-${slugify(name)}`,
-          },
-        });
-
-        if (newCategory) {
-          return res
-            .status(200)
-            .json(jsonResponse(true, "Category has been created", newCategory));
-        }
+      // ✅ Image সহ বা ছাড়া একটাই create call
+      const newCategory = await tx.category.create({
+        data: {
+          userId: req.user.parentId ? req.user.parentId : req.user.id,
+          name,
+          text,
+          image: imageUrl,
+          serial: parseInt(serial) || 0,
+          createdBy: req.user.id,
+          slug: `${slugify(user.name)}-${slugify(name)}`,
+        },
       });
+
+      if (newCategory) {
+        return res
+          .status(200)
+          .json(jsonResponse(true, "Category has been created", newCategory));
+      } else {
+        return res
+          .status(400)
+          .json(jsonResponse(false, "Category has not been created", null));
+      }
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+    return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
-
 //get all categories
 export const getCategories = async (req, res) => {
   try {

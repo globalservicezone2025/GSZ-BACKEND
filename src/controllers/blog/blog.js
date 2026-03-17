@@ -136,7 +136,7 @@ export const updateBlog = async (req, res) => {
           mainTopic,
           tags: tagsArray, // ✅
           socialMediaLinks: JSON.parse(socialMediaLinks),
-          updatedBy: req.user.id,
+        
         },
       });
 

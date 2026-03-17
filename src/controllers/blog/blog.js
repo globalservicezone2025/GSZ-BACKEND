@@ -14,6 +14,9 @@ export const createBlog = async (req, res) => {
     return await prisma.$transaction(async (tx) => {
       const { title, description, mainTopic, tags, socialMediaLinks } = req.body;
 
+      // ✅ tags কে array-এ convert করো
+      const tagsArray = typeof tags === "string" ? tags.split(",").map((tag) => tag.trim()) : tags;
+
       // Validate input
       const inputValidation = validateInput(
         [title, mainTopic],
@@ -46,7 +49,7 @@ export const createBlog = async (req, res) => {
           description,
           image: imageUrl,
           mainTopic,
-          tags,
+          tags: tagsArray, // ✅
           socialMediaLinks: JSON.parse(socialMediaLinks),
           authorId: req.user.id,
         },
@@ -63,6 +66,7 @@ export const createBlog = async (req, res) => {
     return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
+
 
 // Update Blog
 export const updateBlog = async (req, res) => {

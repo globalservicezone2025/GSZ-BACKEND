@@ -3,6 +3,7 @@ import jsonResponse from "../../utils/jsonResponse.js";
 import validateInput from "../../utils/validateInput.js";
 import uploadToCLoudinary from "../../utils/uploadToCloudinary.js";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary.js";
+import uploadToCloudinary from "../../utils/uploadToCloudinary.js";
 
 const module_name = "blog";
 

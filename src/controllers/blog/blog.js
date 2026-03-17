@@ -3,225 +3,95 @@ import jsonResponse from "../../utils/jsonResponse.js";
 import validateInput from "../../utils/validateInput.js";
 import uploadToCLoudinary from "../../utils/uploadToCloudinary.js";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary.js";
+import uploadToCloudinary from "../../utils/uploadToCloudinary.js";
 
 const module_name = "blog";
 
 // Create Blog
-// // export const createBlog = async (req, res) => {
-// //   try {
-// //     return await prisma.$transaction(async (tx) => {
-// //       const { title, description, mainTopic, tags, socialMediaLinks } =
-// //         req.body;
-
-// //       // Validate input
-// //       const inputValidation = validateInput(
-// //         [title, mainTopic],
-// //         ["Title", "Main Topic"]
-// //       );
-
-// //       if (inputValidation) {
-// //         return res.status(400).json(jsonResponse(false, inputValidation, null));
-// //       }
-
-// //       //if there is no image selected
-// //       if (!req.file) {
-// //         //create category
-// //         const newBlog = await prisma.category.create({
-// //           data: {
-// //             title,
-// //             description,
-// //             image: null,
-// //             mainTopic,
-// //             tags,
-// //             socialMediaLinks: JSON.parse(socialMediaLinks),
-// //             authorId: req.user.id,
-// //           },
-// //         });
-
-// //         if (newBlog) {
-// //           return res
-// //             .status(200)
-// //             .json(jsonResponse(true, "Blog has been created", newCategory));
-// //         }
-// //       }
-
-// //       //upload image
-// //       // const imageUpload = await uploadImage(req.file);
-// //       await uploadToCLoudinary(req.file, module_name, async (error, result) => {
-// //         if (error) {
-// //           console.error("error", error);
-// //           return res.status(404).json(jsonResponse(false, error, null));
-// //         }
-
-// //         if (!result.secure_url) {
-// //           return res
-// //             .status(404)
-// //             .json(
-// //               jsonResponse(
-// //                 false,
-// //                 "Something went wrong while uploading image. Try again",
-// //                 null
-// //               )
-// //             );
-// //         }
-
-// //         //create category
-// //         const newBlog = await prisma.blog.create({
-// //           data: {
-// //             title,
-// //             description,
-// //             image: result.secure_url,
-// //             mainTopic,
-// //             tags,
-// //             socialMediaLinks: JSON.parse(socialMediaLinks),
-// //             authorId: req.user.id,
-// //           },
-// //         });
-
-// //         if (newBlog) {
-// //           return res
-// //             .status(200)
-// //             .json(jsonResponse(true, "Blog has been created", newBlog));
-// //         }
-// //       });
-// //     });
-// //   } catch (error) {
-// //     console.log(error);
-// //     return res.status(500).json(jsonResponse(false, error, null));
-// //   }
-// // };
-
-// export const createBlog = async (req, res) => {
-//   try {
-//     const { title, description, mainTopic, tags, socialMediaLinks } = req.body;
-
-//     const inputValidation = validateInput(
-//       [title, mainTopic],
-//       ["Title", "Main Topic"]
-//     );
-//     if (inputValidation) {
-//       return res.status(400).json(jsonResponse(false, inputValidation, null));
-//     }
-
-//     let parsedTags = [];
-//     let parsedSocialMediaLinks = {};
-
-//     try {
-//       parsedTags = tags ? JSON.parse(tags) : [];
-//     } catch {
-//       return res.status(400).json(jsonResponse(false, "Invalid tags format", null));
-//     }
-
-//     try {
-//       parsedSocialMediaLinks = socialMediaLinks ? JSON.parse(socialMediaLinks) : {};
-//     } catch {
-//       return res.status(400).json(jsonResponse(false, "Invalid social media links format", null));
-//     }
-
-//     // Image upload কে Promise-এ wrap করো
-//     let imageUrl = null;
-
-//     if (req.file) {
-//       imageUrl = await new Promise((resolve, reject) => {
-//         uploadToCLoudinary(req.file, module_name, (error, result) => {
-//           if (error) return reject(new Error("Image upload failed"));
-//           if (!result?.secure_url) return reject(new Error("Image upload failed, try again"));
-//           resolve(result.secure_url);
-//         });
-//       });
-//     }
-
-//     const newBlog = await prisma.blog.create({
-//       data: {
-//         title,
-//         description,
-//         image: imageUrl,
-//         mainTopic,
-//         tags: parsedTags,
-//         socialMediaLinks: parsedSocialMediaLinks,
-//         authorId: req.user.id,
-//       },
-//     });
-
-//     return res.status(200).json(jsonResponse(true, "Blog has been created", newBlog));
-
-//   } catch (error) {
-//     console.error("Create blog error:", error);
-//     return res.status(500).json(jsonResponse(false, error?.message || "Internal server error", null));
-//   }
-// };
-
-
 export const createBlog = async (req, res) => {
   try {
-    const { title, description, mainTopic, tags, socialMediaLinks } = req.body;
+    return await prisma.$transaction(async (tx) => {
+      const { title, description, mainTopic, tags, socialMediaLinks } =
+        req.body;
 
-    const inputValidation = validateInput(
-      [title, mainTopic],
-      ["Title", "Main Topic"]
-    );
+      // Validate input
+      const inputValidation = validateInput(
+        [title, mainTopic],
+        ["Title", "Main Topic"]
+      );
 
-    if (inputValidation) {
-      return res.status(400).json(jsonResponse(false, inputValidation, null));
-    }
-
-    let parsedTags = [];
-    let parsedSocialMediaLinks = {};
-
-    try {
-      parsedTags = tags ? JSON.parse(tags) : [];
-    } catch (err) {
-      return res
-        .status(400)
-        .json(jsonResponse(false, "Invalid tags format", null));
-    }
-
-    try {
-      parsedSocialMediaLinks = socialMediaLinks
-        ? JSON.parse(socialMediaLinks)
-        : {};
-    } catch (err) {
-      return res
-        .status(400)
-        .json(jsonResponse(false, "Invalid social media links format", null));
-    }
-
-    let imageUrl = null;
-
-    if (req.file) {
-      const uploadedUrls = await uploadToCloudinary(req.file, module_name);
-
-      if (uploadedUrls === false) {
-        return res
-          .status(400)
-          .json(jsonResponse(false, "Image upload failed", null));
+      if (inputValidation) {
+        return res.status(400).json(jsonResponse(false, inputValidation, null));
       }
 
-      imageUrl = uploadedUrls[0] || null;
-    }
+      //if there is no image selected
+      if (!req.file) {
+        //create category
+        const newBlog = await prisma.category.create({
+          data: {
+            title,
+            description,
+            image: null,
+            mainTopic,
+            tags,
+            socialMediaLinks: JSON.parse(socialMediaLinks),
+            authorId: req.user.id,
+          },
+        });
 
-    const newBlog = await prisma.blog.create({
-      data: {
-        title,
-        description,
-        image: imageUrl,
-        mainTopic,
-        tags: parsedTags,
-        socialMediaLinks: parsedSocialMediaLinks,
-        authorId: req.user.id,
-      },
+        if (newBlog) {
+          return res
+            .status(200)
+            .json(jsonResponse(true, "Blog has been created", newCategory));
+        }
+      }
+
+      //upload image
+      // const imageUpload = await uploadImage(req.file);
+      await uploadToCLoudinary(req.file, module_name, async (error, result) => {
+        if (error) {
+          console.error("error", error);
+          return res.status(404).json(jsonResponse(false, error, null));
+        }
+
+        if (!result.secure_url) {
+          return res
+            .status(404)
+            .json(
+              jsonResponse(
+                false,
+                "Something went wrong while uploading image. Try again",
+                null
+              )
+            );
+        }
+
+        //create category
+        const newBlog = await prisma.blog.create({
+          data: {
+            title,
+            description,
+            image: result.secure_url,
+            mainTopic,
+            tags,
+            socialMediaLinks: JSON.parse(socialMediaLinks),
+            authorId: req.user.id,
+          },
+        });
+
+        if (newBlog) {
+          return res
+            .status(200)
+            .json(jsonResponse(true, "Blog has been created", newBlog));
+        }
+      });
     });
-
-    return res
-      .status(200)
-      .json(jsonResponse(true, "Blog has been created", newBlog));
   } catch (error) {
-    console.log("Create Blog Error:", error);
-    return res
-      .status(500)
-      .json(jsonResponse(false, error?.message || "Internal server error", null));
+    console.log(error);
+    return res.status(500).json(jsonResponse(false, error, null));
   }
 };
+
 
 
 

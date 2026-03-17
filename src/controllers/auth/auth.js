@@ -11,8 +11,22 @@ const module_name = "auth";
 //register
 export const register = async (req, res) => {
   try {
+    // ✅ Blog এর মতো image upload আগে, transaction এর বাইরে
+    let imageUrl = "https://cdn-icons-png.flaticon.com/512/9368/9368192.png";
+
+    if (req.file) {
+      const uploadedUrls = await uploadToCloudinary(req.file, "users");
+
+      if (!uploadedUrls || uploadedUrls.length === 0) {
+        return res
+          .status(400)
+          .json(jsonResponse(false, "Image upload failed. Try again.", null));
+      }
+
+      imageUrl = uploadedUrls[0];
+    }
+
     return await prisma.$transaction(async (tx) => {
-      // Check user if exists
       const user = await tx.user.findFirst({
         where: {
           OR: [{ email: req.body.email }, { phone: req.body.phone }],
@@ -37,16 +51,11 @@ export const register = async (req, res) => {
         country,
         city,
         postalCode,
-        password,
         otp,
         otpCount,
-        initialPaymentAmount,
-        initialPaymentDue,
-        installmentTime,
         designation,
       } = req.body;
 
-      // Validate input
       const inputValidation = validateInput(
         [name, email, phone, address],
         ["Name", "Email", "Phone", "Shipping Address"]
@@ -56,25 +65,8 @@ export const register = async (req, res) => {
         return res.status(400).json(jsonResponse(false, inputValidation, null));
       }
 
-      // Hash the password
       const hashedPassword = bcrypt.hashSync("12345678", 10);
 
-      // ✅ Upload image to Cloudinary
-      let imageUrl = "https://cdn-icons-png.flaticon.com/512/9368/9368192.png";
-
-      if (req.file) {
-        const uploadedUrls = await uploadToCloudinary(req.file, "users");
-
-        if (!uploadedUrls || uploadedUrls.length === 0) {
-          return res
-            .status(400)
-            .json(jsonResponse(false, "Image upload failed. Try again.", null));
-        }
-
-        imageUrl = uploadedUrls[0];
-      }
-
-      // Create user
       const createUser = await tx.user.create({
         data: {
           roleId,
@@ -103,6 +95,10 @@ export const register = async (req, res) => {
         return res
           .status(200)
           .json(jsonResponse(true, "User has been created", createUser));
+      } else {
+        return res
+          .status(400)
+          .json(jsonResponse(false, "User has not been created", null));
       }
     });
   } catch (error) {
@@ -110,7 +106,6 @@ export const register = async (req, res) => {
     return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
-
 // //login with password
 // export const login = async (req, res) => {
 //   try {

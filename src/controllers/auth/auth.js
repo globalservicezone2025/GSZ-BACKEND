@@ -12,7 +12,7 @@ const module_name = "auth";
 export const register = async (req, res) => {
   try {
     return await prisma.$transaction(async (tx) => {
-      //Check user if exists
+      // Check user if exists
       const user = await tx.user.findFirst({
         where: {
           OR: [{ email: req.body.email }, { phone: req.body.phone }],
@@ -46,7 +46,7 @@ export const register = async (req, res) => {
         designation,
       } = req.body;
 
-      //validate input
+      // Validate input
       const inputValidation = validateInput(
         [name, email, phone, address],
         ["Name", "Email", "Phone", "Shipping Address"]
@@ -59,40 +59,22 @@ export const register = async (req, res) => {
       // Hash the password
       const hashedPassword = bcrypt.hashSync("12345678", 10);
 
-      //upload image to Cloudinary
+      // ✅ Upload image to Cloudinary
       let imageUrl = "https://cdn-icons-png.flaticon.com/512/9368/9368192.png";
+
       if (req.file) {
-        const result = await new Promise((resolve, reject) => {
-          uploadToCLoudinary(req.file, module_name, (error, result) => {
-            if (error) {
-              console.error("error", error);
-              return reject(
-                res.status(404).json(jsonResponse(false, error, null))
-              );
-            }
+        const uploadedUrls = await uploadToCloudinary(req.file, "users");
 
-            if (!result.secure_url) {
-              return reject(
-                res
-                  .status(404)
-                  .json(
-                    jsonResponse(
-                      false,
-                      "Something went wrong while uploading image. Try again",
-                      null
-                    )
-                  )
-              );
-            }
+        if (!uploadedUrls || uploadedUrls.length === 0) {
+          return res
+            .status(400)
+            .json(jsonResponse(false, "Image upload failed. Try again.", null));
+        }
 
-            resolve(result);
-          });
-        });
-
-        imageUrl = result.secure_url;
+        imageUrl = uploadedUrls[0];
       }
 
-      //create user
+      // Create user
       const createUser = await tx.user.create({
         data: {
           roleId,
@@ -125,7 +107,7 @@ export const register = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+    return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
 

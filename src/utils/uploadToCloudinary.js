@@ -5,7 +5,14 @@ import { Readable } from "stream";
 
 const uploadToCloudinary = async (files, folder) => {
   try {
-    if (!files || files.length === 0) return [];
+    if (!files) return [];
+
+    // ✅ Single file হলে array-এ convert করো
+    if (!Array.isArray(files)) {
+      files = [files];
+    }
+
+    if (files.length === 0) return [];
 
     if (files.length > 8) {
       console.log("You cannot upload more than 8 pictures");
@@ -49,7 +56,7 @@ const uploadToCloudinary = async (files, folder) => {
       uploadedUrls.push(url);
     }
 
-    return uploadedUrls; // Return array of URLs
+    return uploadedUrls;
   } catch (error) {
     console.log("Cloudinary Upload Error:", error);
     return false;

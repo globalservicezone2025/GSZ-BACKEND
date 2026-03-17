@@ -4,6 +4,7 @@ import validateInput from "../../utils/validateInput.js";
 import uploadToCLoudinary from "../../utils/uploadToCloudinary.js";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary.js";
 import uploadToCloudinary from "../../utils/uploadToCloudinary.js";
+import { v2 as cloudinary } from "cloudinary" 
 
 const module_name = "blog";
 

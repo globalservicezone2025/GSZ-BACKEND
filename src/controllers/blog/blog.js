@@ -95,108 +95,61 @@ export const createBlog = async (req, res) => {
   try {
     const { title, description, mainTopic, tags, socialMediaLinks } = req.body;
 
-    // Validate input
     const inputValidation = validateInput(
       [title, mainTopic],
       ["Title", "Main Topic"]
     );
-
     if (inputValidation) {
       return res.status(400).json(jsonResponse(false, inputValidation, null));
     }
 
-    // Parse JSON fields safely
     let parsedTags = [];
     let parsedSocialMediaLinks = {};
 
     try {
       parsedTags = tags ? JSON.parse(tags) : [];
-    } catch (err) {
-      return res
-        .status(400)
-        .json(jsonResponse(false, "Invalid tags format", null));
+    } catch {
+      return res.status(400).json(jsonResponse(false, "Invalid tags format", null));
     }
 
     try {
-      parsedSocialMediaLinks = socialMediaLinks
-        ? JSON.parse(socialMediaLinks)
-        : {};
-    } catch (err) {
-      return res
-        .status(400)
-        .json(jsonResponse(false, "Invalid social media links format", null));
+      parsedSocialMediaLinks = socialMediaLinks ? JSON.parse(socialMediaLinks) : {};
+    } catch {
+      return res.status(400).json(jsonResponse(false, "Invalid social media links format", null));
     }
 
-    // If no image selected
-    if (!req.file) {
-      const newBlog = await prisma.blog.create({
-        data: {
-          title,
-          description,
-          image: null,
-          mainTopic,
-          tags: parsedTags,
-          socialMediaLinks: parsedSocialMediaLinks,
-          authorId: req.user.id,
-        },
-      });
+    // Image upload কে Promise-এ wrap করো
+    let imageUrl = null;
 
-      return res
-        .status(200)
-        .json(jsonResponse(true, "Blog has been created", newBlog));
-    }
-
-    // If image selected -> upload to cloudinary first
-    uploadToCLoudinary(req.file, module_name, async (error, result) => {
-      try {
-        if (error) {
-          console.error("Cloudinary upload error:", error);
-          return res
-            .status(500)
-            .json(jsonResponse(false, "Image upload failed", null));
-        }
-
-        if (!result?.secure_url) {
-          return res.status(500).json(
-            jsonResponse(
-              false,
-              "Something went wrong while uploading image. Try again",
-              null
-            )
-          );
-        }
-
-        const newBlog = await prisma.blog.create({
-          data: {
-            title,
-            description,
-            image: result.secure_url,
-            mainTopic,
-            tags: parsedTags,
-            socialMediaLinks: parsedSocialMediaLinks,
-            authorId: req.user.id,
-          },
+    if (req.file) {
+      imageUrl = await new Promise((resolve, reject) => {
+        uploadToCLoudinary(req.file, module_name, (error, result) => {
+          if (error) return reject(new Error("Image upload failed"));
+          if (!result?.secure_url) return reject(new Error("Image upload failed, try again"));
+          resolve(result.secure_url);
         });
+      });
+    }
 
-        return res
-          .status(200)
-          .json(jsonResponse(true, "Blog has been created", newBlog));
-      } catch (err) {
-        console.error("Create blog after upload error:", err);
-        return res
-          .status(500)
-          .json(jsonResponse(false, "Failed to create blog", null));
-      }
+    const newBlog = await prisma.blog.create({
+      data: {
+        title,
+        description,
+        image: imageUrl,
+        mainTopic,
+        tags: parsedTags,
+        socialMediaLinks: parsedSocialMediaLinks,
+        authorId: req.user.id,
+      },
     });
+
+    return res.status(200).json(jsonResponse(true, "Blog has been created", newBlog));
+
   } catch (error) {
     console.error("Create blog error:", error);
-    return res
-      .status(500)
-      .json(jsonResponse(false, error?.message || "Internal server error", null));
+    return res.status(500).json(jsonResponse(false, error?.message || "Internal server error", null));
   }
 };
-
-
 
 
 

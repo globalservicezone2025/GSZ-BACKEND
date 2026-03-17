@@ -5,9 +5,20 @@ import { Readable } from "stream";
 
 const uploadToCloudinary = async (files, folder) => {
   try {
-    if (!files || files.length === 0) return [];
+    // Normalize single file / multiple files
+    let normalizedFiles = [];
 
-    if (files.length > 8) {
+    if (!files) return [];
+
+    if (Array.isArray(files)) {
+      normalizedFiles = files;
+    } else {
+      normalizedFiles = [files];
+    }
+
+    if (normalizedFiles.length === 0) return [];
+
+    if (normalizedFiles.length > 8) {
       console.log("You cannot upload more than 8 pictures");
       return false;
     }
@@ -24,32 +35,41 @@ const uploadToCloudinary = async (files, folder) => {
       return readable;
     };
 
-    for (let file of files) {
-      const file_extension = extname(file.originalname).toLowerCase();
-      if (![".jpg", ".jpeg", ".png", ".webp"].includes(file_extension)) {
+    for (const file of normalizedFiles) {
+      if (!file?.originalname || !file?.buffer) {
+        console.log("Invalid file object");
+        return false;
+      }
+
+      const fileExtension = extname(file.originalname).toLowerCase();
+
+      if (![".jpg", ".jpeg", ".png", ".webp"].includes(fileExtension)) {
         console.log("Please select jpg/jpeg/png/webp image");
         return false;
       }
 
-      // Convert image to WebP with sharp
-      const data = await sharp(file.buffer).webp({ quality: 80 }).toBuffer();
+      // Convert to webp
+      const data = await sharp(file.buffer)
+        .webp({ quality: 80 })
+        .toBuffer();
 
-      // Upload to Cloudinary
+      // Upload to cloudinary
       const url = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           { folder },
           (error, result) => {
-            if (error) reject(error);
-            else resolve(result.secure_url);
+            if (error) return reject(error);
+            return resolve(result.secure_url);
           }
         );
+
         bufferToStream(data).pipe(stream);
       });
 
       uploadedUrls.push(url);
     }
 
-    return uploadedUrls; // Return array of URLs
+    return uploadedUrls; // Always returns array
   } catch (error) {
     console.log("Cloudinary Upload Error:", error);
     return false;

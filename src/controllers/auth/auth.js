@@ -5,6 +5,7 @@ import jwtSign from "../../utils/jwtSign.js";
 import prisma from "../../utils/prismaClient.js";
 import validateInput from "../../utils/validateInput.js";
 import uploadToCLoudinary from "../../utils/uploadToCloudinary.js";
+import uploadToCloudinary from "../../utils/uploadToCloudinary.js";
 
 const module_name = "auth";
 

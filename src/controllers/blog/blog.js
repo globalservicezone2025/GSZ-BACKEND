@@ -72,8 +72,10 @@ export const createBlog = async (req, res) => {
 export const updateBlog = async (req, res) => {
   try {
     return await prisma.$transaction(async (tx) => {
-      const { title, description, mainTopic, tags, socialMediaLinks } =
-        req.body;
+      const { title, description, mainTopic, tags, socialMediaLinks } = req.body;
+
+      // ✅ tags কে array-এ convert করো
+      const tagsArray = typeof tags === "string" ? tags.split(",").map((tag) => tag.trim()) : tags;
 
       // Validate input
       const inputValidation = validateInput(
@@ -98,42 +100,29 @@ export const updateBlog = async (req, res) => {
 
       // Handle image upload
       let imageUrl = findBlog.image;
+
       if (req.file) {
-        await uploadToCLoudinary(
-          req.file,
-          module_name,
-          async (error, result) => {
-            if (error) {
-              console.error("error", error);
-              return res.status(404).json(jsonResponse(false, error, null));
-            }
+        // ✅ await দিয়ে Promise-based call
+        const uploadedUrls = await uploadToCloudinary(req.file, "blogs");
 
-            if (!result.secure_url) {
-              return res
-                .status(404)
-                .json(
-                  jsonResponse(
-                    false,
-                    "Something went wrong while uploading image. Try again",
-                    null
-                  )
-                );
-            }
+        if (!uploadedUrls || uploadedUrls.length === 0) {
+          return res
+            .status(400)
+            .json(jsonResponse(false, "Image upload failed. Try again.", null));
+        }
 
-            imageUrl = result.secure_url;
+        // ✅ পুরনো image Cloudinary থেকে delete করো
+        if (findBlog.image) {
+          const publicId = findBlog.image
+            .split("/")
+            .slice(-2)
+            .join("/")
+            .replace(/\.[^/.]+$/, ""); // URL থেকে public_id বের করো
 
-            // Delete previous uploaded image
-            if (findBlog.image) {
-              await deleteFromCloudinary(
-                findBlog.image,
-                async (error, result) => {
-                  console.log("error", error);
-                  console.log("result", result);
-                }
-              );
-            }
-          }
-        );
+          await cloudinary.uploader.destroy(publicId);
+        }
+
+        imageUrl = uploadedUrls[0];
       }
 
       // Update blog
@@ -144,7 +133,7 @@ export const updateBlog = async (req, res) => {
           description,
           image: imageUrl,
           mainTopic,
-          tags,
+          tags: tagsArray, // ✅
           socialMediaLinks: JSON.parse(socialMediaLinks),
           updatedBy: req.user.id,
         },
@@ -162,10 +151,9 @@ export const updateBlog = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+    return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
-
 // Delete Blog
 export const deleteBlog = async (req, res) => {
   try {

@@ -5,6 +5,7 @@ import prisma from "../../utils/prismaClient.js";
 import slugify from "../../utils/slugify.js";
 import uploadToCLoudinary from "../../utils/uploadToCloudinary.js";
 import validateInput from "../../utils/validateInput.js";
+import { updateSubcategory } from "../subcategory/subcategory.js";
 // import uploadImage from "../../utils/uploadImage.js";
 
 const module_name = "subsubcategory";
@@ -14,16 +15,10 @@ export const createSubsubcategory = async (req, res) => {
   try {
     return await prisma.$transaction(async (tx) => {
       let {
-        name,
-        description,
-        text,
-        categoryId,
-        subcategoryId,
-        isActive,
-        serial,
+        name, description, text, categoryId, subcategoryId, isActive, serial,
       } = req.body;
 
-      //validate input
+      // Validate input
       const inputValidation = validateInput(
         [name, categoryId, subcategoryId],
         ["Name", "Category", "Subcategory"]
@@ -33,113 +28,66 @@ export const createSubsubcategory = async (req, res) => {
         return res.status(400).json(jsonResponse(false, inputValidation, null));
       }
 
-      //check if subsubcategory exists
+      // Check if subsubcategory exists
       const subsubcategory = await tx.subsubcategory.findFirst({
-        where: {
-          slug: slugify(name),
+        where: { slug: slugify(name) },
+      });
+
+      if (subsubcategory && subsubcategory?.slug === slugify(name)) {
+        return res.status(409).json(
+          jsonResponse(false, `${name} already exists. Please change it`, null)
+        );
+      }
+
+      // Handle image upload
+      let imageUrl = null;
+
+      if (req.file) {
+        const uploadedUrls = await updateSubcategory(req.file, module_name);
+
+        if (!uploadedUrls || uploadedUrls.length === 0) {
+          return res.status(400).json(
+            jsonResponse(false, "Image upload failed. Try again.", null)
+          );
+        }
+
+        imageUrl = uploadedUrls[0];
+      }
+
+      // Create subsubcategory
+      const newSubsubcategory = await tx.subsubcategory.create({
+        data: {
+          name,
+          description,
+          text,
+          isActive: isActive === "true",
+          image: imageUrl,
+          serial: parseInt(serial) || 0,
+          slug: `${slugify(name)}`,
+          category: {
+            connect: { id: categoryId },
+          },
+          subcategory: {
+            connect: { id: subcategoryId },
+          },
         },
       });
 
-      if (subsubcategory && subsubcategory?.slug === slugify(name))
-        return res
-          .status(409)
-          .json(
-            jsonResponse(
-              false,
-              `${name} already exists. Please change it`,
-              null
-            )
-          );
-
-      //if there is no image selected
-      if (!req.file) {
-        const newSubsubcategory = await prisma.subsubcategory.create({
-          data: {
-            name,
-            description,
-            text,
-            isActive: isActive === "true" ? true : false,
-            serial: parseInt(serial) || 0, // Parse serial to integer
-            slug: `${slugify(name)}`,
-            category: {
-              connect: { id: categoryId },
-            },
-            subcategory: {
-              connect: { id: subcategoryId },
-            },
-          },
-        });
-
-        if (newSubsubcategory) {
-          return res
-            .status(200)
-            .json(
-              jsonResponse(
-                true,
-                "Subsubcategory has been created",
-                newSubsubcategory
-              )
-            );
-        }
+      if (newSubsubcategory) {
+        return res.status(200).json(
+          jsonResponse(true, "Subsubcategory has been created", newSubsubcategory)
+        );
+      } else {
+        return res.status(400).json(
+          jsonResponse(false, "Subsubcategory has not been created", null)
+        );
       }
-
-      //upload image
-      await uploadToCLoudinary(req.file, module_name, async (error, result) => {
-        if (error) {
-          console.error("error", error);
-          return res.status(404).json(jsonResponse(false, error, null));
-        }
-
-        if (!result.secure_url) {
-          return res
-            .status(404)
-            .json(
-              jsonResponse(
-                false,
-                "Something went wrong while uploading image. Try again",
-                null
-              )
-            );
-        }
-
-        //create subsubcategory
-        const newSubsubcategory = await prisma.subsubcategory.create({
-          data: {
-            name,
-            description,
-            text,
-            isActive: isActive === "true" ? true : false,
-            image: result.secure_url,
-            serial: parseInt(serial) || 0, // Parse serial to integer
-            slug: `${slugify(name)}`,
-            category: {
-              connect: { id: categoryId },
-            },
-            subcategory: {
-              connect: { id: subcategoryId },
-            },
-          },
-        });
-
-        if (newSubsubcategory) {
-          return res
-            .status(200)
-            .json(
-              jsonResponse(
-                true,
-                "Subsubcategory has been created",
-                newSubsubcategory
-              )
-            );
-        }
-      });
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+    return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
-
 //get all subsubcategories
 export const getSubsubcategories = async (req, res) => {
   try {

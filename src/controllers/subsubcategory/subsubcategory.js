@@ -3,6 +3,7 @@ import deleteFromCloudinary from "../../utils/deleteFromCloudinary.js";
 import jsonResponse from "../../utils/jsonResponse.js";
 import prisma from "../../utils/prismaClient.js";
 import slugify from "../../utils/slugify.js";
+import uploadToCloudinary from "../../utils/uploadToCloudinary.js";
 import uploadToCLoudinary from "../../utils/uploadToCloudinary.js";
 import validateInput from "../../utils/validateInput.js";
 import { updateSubcategory } from "../subcategory/subcategory.js";
@@ -43,7 +44,7 @@ export const createSubsubcategory = async (req, res) => {
       let imageUrl = null;
 
       if (req.file) {
-        const uploadedUrls = await updateSubcategory(req.file, module_name);
+        const uploadedUrls = await uploadToCloudinary(req.file, module_name);
 
         if (!uploadedUrls || uploadedUrls.length === 0) {
           return res.status(400).json(

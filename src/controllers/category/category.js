@@ -3,6 +3,7 @@ import deleteFromCloudinary from "../../utils/deleteFromCloudinary.js";
 import jsonResponse from "../../utils/jsonResponse.js";
 import prisma from "../../utils/prismaClient.js";
 import slugify from "../../utils/slugify.js";
+import uploadToCloudinary from "../../utils/uploadToCloudinary.js";
 import uploadToCLoudinary from "../../utils/uploadToCloudinary.js";
 import validateInput from "../../utils/validateInput.js";
 // import uploadImage from "../../utils/uploadImage.js";
@@ -12,27 +13,11 @@ const module_name = "category";
 //create category
 export const createCategory = async (req, res) => {
   try {
-    // ✅ Image upload transaction এর বাইরে
-    let imageUrl = null;
-
-    if (req.file) {
-      const uploadedUrls = await uploadToCLoudinary(req.file, "categories");
-
-      if (!uploadedUrls || uploadedUrls.length === 0) {
-        return res
-          .status(400)
-          .json(jsonResponse(false, "Image upload failed. Try again.", null));
-      }
-
-      imageUrl = uploadedUrls[0];
-    }
-
     return await prisma.$transaction(async (tx) => {
       const { name, text, serial } = req.body;
 
       // Validate input
       const inputValidation = validateInput([name], ["Name"]);
-
       if (inputValidation) {
         return res.status(400).json(jsonResponse(false, inputValidation, null));
       }
@@ -42,10 +27,9 @@ export const createCategory = async (req, res) => {
         where: { id: req.user.parentId ? req.user.parentId : req.user.id },
       });
 
-      if (!user)
-        return res
-          .status(404)
-          .json(jsonResponse(false, "This user does not exist", null));
+      if (!user) {
+        return res.status(404).json(jsonResponse(false, "This user does not exist", null));
+      }
 
       // Check if category exists
       const category = await tx.category.findFirst({
@@ -56,21 +40,28 @@ export const createCategory = async (req, res) => {
         },
       });
 
-      if (
-        category &&
-        category.slug === `${slugify(user.name)}-${slugify(name)}`
-      )
-        return res
-          .status(409)
-          .json(
-            jsonResponse(
-              false,
-              `${name} already exists. Change its name.`,
-              null
-            )
-          );
+      if (category && category.slug === `${slugify(user.name)}-${slugify(name)}`) {
+        return res.status(409).json(
+          jsonResponse(false, `${name} already exists. Change its name.`, null)
+        );
+      }
 
-      // ✅ Image সহ বা ছাড়া একটাই create call
+      // Handle image upload
+      let imageUrl = null;
+
+      if (req.file) {
+        const uploadedUrls = await uploadToCloudinary(req.file, "categories"); // ✅ fixed
+
+        if (!uploadedUrls || uploadedUrls.length === 0) {
+          return res.status(400).json(
+            jsonResponse(false, "Image upload failed. Try again.", null)
+          );
+        }
+
+        imageUrl = uploadedUrls[0];
+      }
+
+      // Create category
       const newCategory = await tx.category.create({
         data: {
           userId: req.user.parentId ? req.user.parentId : req.user.id,
@@ -84,13 +75,13 @@ export const createCategory = async (req, res) => {
       });
 
       if (newCategory) {
-        return res
-          .status(200)
-          .json(jsonResponse(true, "Category has been created", newCategory));
+        return res.status(200).json(
+          jsonResponse(true, "Category has been created", newCategory)
+        );
       } else {
-        return res
-          .status(400)
-          .json(jsonResponse(false, "Category has not been created", null));
+        return res.status(400).json(
+          jsonResponse(false, "Category has not been created", null)
+        );
       }
     });
   } catch (error) {

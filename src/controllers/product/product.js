@@ -4,8 +4,11 @@ import sendEmail from "../../utils/emailService.js";
 import jsonResponse from "../../utils/jsonResponse.js";
 import prisma from "../../utils/prismaClient.js";
 import slugify from "../../utils/slugify.js";
+import uploadToCloudinary from "../../utils/uploadToCloudinary.js";
 import uploadToCLoudinary from "../../utils/uploadToCloudinary.js";
 import validateInput from "../../utils/validateInput.js";
+import { v2 as cloudinary } from "cloudinary" 
+
 
 const module_name = "product";
 
@@ -14,126 +17,73 @@ export const createProduct = async (req, res) => {
   try {
     return await prisma.$transaction(async (tx) => {
       const {
-        name,
-        isActive,
-        isDeal,
-        updatedBy,
-        deletedBy,
-        mainCategory,
-        tags,
-        link,
-        description,
-        price,
+        name, isActive, isDeal, updatedBy, deletedBy,
+        mainCategory, tags, link, description, price,
       } = req.body;
 
-      //validate input
+      // tags কে array-এ convert করো
+      const tagsArray = typeof tags === "string" ? tags.split(",").map((tag) => tag.trim()) : tags;
+
+      // Validate input
       const inputValidation = validateInput(
         [name, description, price],
         ["Name", "Description", "Price"]
       );
-
       if (inputValidation) {
         return res.status(400).json(jsonResponse(false, inputValidation, null));
       }
 
-      //check if product exists
-      const product = await tx.product.findFirst({
-        where: {
-          name: name,
+      // Check if product exists
+      const existing = await tx.product.findFirst({ where: { name } });
+      if (existing) {
+        return res.status(409).json(
+          jsonResponse(false, `${name} already exists. Change its name.`, null)
+        );
+      }
+
+      // Image upload
+      let imageUrl = null;
+      if (req.file) {
+        const uploadedUrls = await uploadToCloudinary(req.file, module_name);
+
+        if (!uploadedUrls || uploadedUrls.length === 0) {
+          return res.status(400).json(
+            jsonResponse(false, "Image upload failed. Try again.", null)
+          );
+        }
+
+        imageUrl = uploadedUrls[0];
+      }
+
+      // Create product
+      const newProduct = await tx.product.create({
+        data: {
+          name,
+          isActive: isActive === "true",
+          isDeal: isDeal === "true",
+          createdBy: req.user.id,
+          updatedBy,
+          deletedBy,
+          mainCategory,
+          tags: tagsArray,
+          image: imageUrl,
+          link,
+          description,
+          price: parseFloat(price),
         },
       });
 
-      if (product) {
-        return res
-          .status(409)
-          .json(
-            jsonResponse(
-              false,
-              `${name} already exists. Change its name.`,
-              null
-            )
-          );
+      if (newProduct) {
+        return res.status(200).json(
+          jsonResponse(true, "Deal has been created", newProduct)
+        );
       }
-
-      console.log("Image: ", req.file);
-
-      //if there is no image selected
-      if (!req.file) {
-        //create product
-        const newProduct = await prisma.product.create({
-          data: {
-            name,
-            isActive: isActive === "true" ? true : false,
-            isDeal: isDeal === "true" ? true : false,
-            createdBy: req.user.id,
-            updatedBy,
-            deletedBy,
-            mainCategory,
-            tags,
-            image: null,
-            link,
-            description,
-            price: parseFloat(price),
-          },
-        });
-
-        if (newProduct) {
-          return res
-            .status(200)
-            .json(jsonResponse(true, "Product has been created", newProduct));
-        }
-      }
-
-      //upload image
-      await uploadToCLoudinary(req.file, module_name, async (error, result) => {
-        if (error) {
-          console.error("error", error);
-          return res.status(404).json(jsonResponse(false, error, null));
-        }
-
-        if (!result.secure_url) {
-          return res
-            .status(404)
-            .json(
-              jsonResponse(
-                false,
-                "Something went wrong while uploading image. Try again",
-                null
-              )
-            );
-        }
-
-        //create product
-        const newProduct = await prisma.product.create({
-          data: {
-            name,
-            isActive: isActive === "true" ? true : false,
-            isDeal: isDeal === "true" ? true : false,
-            createdBy: req.user.id,
-            updatedBy,
-            deletedBy,
-            mainCategory,
-            tags,
-            image: result.secure_url,
-            link,
-            description,
-            price: parseFloat(price),
-          },
-        });
-
-        if (newProduct) {
-          return res
-            .status(200)
-            .json(jsonResponse(true, "Product has been created", newProduct));
-        }
-      });
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+    return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
-
 //send product email
 export const sendProductEmail = async (req, res) => {
   try {
@@ -386,126 +336,96 @@ export const getProduct = async (req, res) => {
 };
 
 //update product
+
 export const updateProduct = async (req, res) => {
   try {
     return await prisma.$transaction(async (tx) => {
       const {
-        name,
-        isActive,
-        updatedBy,
-        deletedBy,
-        mainCategory,
-        tags,
-        link,
-        description,
-        price,
+        name, isActive, updatedBy, deletedBy,
+        mainCategory, tags, link, description, price,
       } = req.body;
 
-      //validate input
-      const inputValidation = validateInput(
-        [name, mainCategory, description, price],
-        ["Name", "Main Category", "Description", "Price"]
-      );
+      // tags কে array-এ convert করো
+      const tagsArray = typeof tags === "string" ? tags.split(",").map((tag) => tag.trim()) : tags;
 
+      // Validate input
+      const inputValidation = validateInput(
+        [name, description, price],
+        ["Name", "Description", "Price"]
+      );
       if (inputValidation) {
         return res.status(400).json(jsonResponse(false, inputValidation, null));
       }
 
-      //get user id from product and user name from user for slugify
+      // Find the product to be updated
       const findProduct = await tx.product.findFirst({
         where: { id: req.params.id },
       });
 
-      if (!findProduct)
-        return res
-          .status(404)
-          .json(jsonResponse(false, "This product does not exist", null));
-
-      console.log("Image: ", req.file);
-
-      //if there is no image selected
-      if (!req.file) {
-        //update product
-        const product = await tx.product.update({
-          where: { id: req.params.id },
-          data: {
-            name,
-            isActive: isActive === "true" ? true : false,
-            updatedBy: req.user.id,
-            deletedBy,
-            mainCategory,
-            tags,
-            image: findProduct.image,
-            link,
-            description,
-            price: parseFloat(price),
-          },
-        });
-
-        if (product) {
-          return res
-            .status(200)
-            .json(jsonResponse(true, "Product has been updated", product));
-        }
+      if (!findProduct) {
+        return res.status(404).json(jsonResponse(false, "This product does not exist", null));
       }
 
-      //upload image
-      await uploadToCLoudinary(req.file, module_name, async (error, result) => {
-        if (error) {
-          console.error("error", error);
-          return res.status(404).json(jsonResponse(false, error, null));
-        }
+      // Handle image upload
+      let imageUrl = findProduct.image;
 
-        if (!result.secure_url) {
-          return res
-            .status(404)
-            .json(
-              jsonResponse(
-                false,
-                "Something went wrong while uploading image. Try again",
-                null
-              )
-            );
-        }
+      if (req.file) {
+        const uploadedUrls = await uploadToCloudinary(req.file, module_name);
 
-        //update product
-        const product = await tx.product.update({
-          where: { id: req.params.id },
-          data: {
-            name,
-            isActive: isActive === "true" ? true : false,
-            updatedBy: req.user.id,
-            deletedBy,
-            mainCategory,
-            tags,
-            image: result.secure_url,
-            link,
-            description,
-            price: parseFloat(price),
-          },
-        });
-
-        if (product) {
-          //delete previous uploaded image
-          await deleteFromCloudinary(
-            findProduct.image,
-            async (error, result) => {
-              console.log("error", error);
-              console.log("result", result);
-            }
+        if (!uploadedUrls || uploadedUrls.length === 0) {
+          return res.status(400).json(
+            jsonResponse(false, "Image upload failed. Try again.", null)
           );
-
-          return res
-            .status(200)
-            .json(jsonResponse(true, "Product has been updated", product));
         }
+
+        // পুরনো image Cloudinary থেকে delete করো
+        if (findProduct.image) {
+          const publicId = findProduct.image
+            .split("/")
+            .slice(-2)
+            .join("/")
+            .replace(/\.[^/.]+$/, "");
+
+          await cloudinary.uploader.destroy(publicId);
+        }
+
+        imageUrl = uploadedUrls[0];
+      }
+
+      // Update product
+      const updatedProduct = await tx.product.update({
+        where: { id: req.params.id },
+        data: {
+          name,
+          isActive: isActive === "true",
+          updatedBy: req.user.id,
+          deletedBy,
+          mainCategory,
+          tags: tagsArray,
+          image: imageUrl,
+          link,
+          description,
+          price: parseFloat(price),
+        },
       });
+
+      if (updatedProduct) {
+        return res.status(200).json(
+          jsonResponse(true, "Deal has been updated", updatedProduct)
+        );
+      } else {
+        return res.status(404).json(
+          jsonResponse(false, "Deal has not been updated", null)
+        );
+      }
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json(jsonResponse(false, error, null));
+    return res.status(500).json(jsonResponse(false, error.message, null));
   }
 };
+
+
 
 //update product attribute
 export const updateProductAttribute = async (req, res) => {
@@ -816,11 +736,11 @@ export const deleteProduct = async (req, res) => {
 
         return res
           .status(200)
-          .json(jsonResponse(true, "Product has been deleted", deletedProduct));
+          .json(jsonResponse(true, "Deal has been deleted", deletedProduct));
       } else {
         return res
           .status(404)
-          .json(jsonResponse(false, "Product has not been deleted", null));
+          .json(jsonResponse(false, "Deal has not been deleted", null));
       }
     });
   } catch (error) {
